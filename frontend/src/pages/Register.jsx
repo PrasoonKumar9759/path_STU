@@ -1,47 +1,60 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
 import { GoogleLogin } from '@react-oauth/google'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { ArrowRight, BookOpen, Eye, EyeOff, Sparkles, TrendingUp, Users, Zap } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import './Login.css'
 
 const Register = () => {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [role, setRole] = useState('STUDENT')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  
+
   const { register, googleLogin, isAuthenticated } = useAuth()
   const navigate = useNavigate()
+  const googleEnabled = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim())
 
-  // Redirect if already authenticated
-  if (isAuthenticated) {
-    navigate('/dashboard', { replace: true })
-    return null
+  const resolveApiError = (err, fallbackMessage) => {
+    if (!err.response) {
+      return 'Cannot connect to server. Please make sure backend is running.'
+    }
+    if (err.response?.data?.message) {
+      return err.response.data.message
+    }
+    if (err.response?.data?.errors) {
+      const firstError = Object.values(err.response.data.errors)[0]
+      if (typeof firstError === 'string') return firstError
+    }
+    return fallbackMessage
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
     setError('')
 
     if (password !== confirmPassword) {
       setError('Passwords do not match')
       return
     }
-
     if (password.length < 6) {
       setError('Password must be at least 6 characters')
       return
     }
 
     setLoading(true)
-
     try {
-      await register(name, email, password)
+      await register(name, email, password, role)
       navigate('/dashboard', { replace: true })
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed. Please try again.')
+      setError(resolveApiError(err, 'Registration failed. Please try again.'))
     } finally {
       setLoading(false)
     }
@@ -55,124 +68,214 @@ const Register = () => {
       await googleLogin(credentialResponse.credential)
       navigate('/dashboard', { replace: true })
     } catch (err) {
-      setError(err.response?.data?.message || 'Google login failed')
+      setError(resolveApiError(err, 'Google signup failed'))
     } finally {
       setLoading(false)
     }
   }
 
-  const handleGoogleError = () => {
-    setError('Google signup failed. Please try again.')
-  }
-
   return (
-    <div className="login-container">
-      <div className="login-card">
-        <div className="login-header">
-          <Link to="/" className="logo">
-            <span className="logo-icon">📚</span>
-            <span className="logo-text">PathSTU</span>
+    <div className="min-h-screen bg-slate-50 lg:grid lg:grid-cols-2">
+      <section className="flex items-center justify-center px-5 py-12 sm:px-8 lg:px-12">
+        <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-300/30 sm:p-8">
+          <Link to="/" className="inline-flex items-center gap-2 no-underline">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600">
+              <Zap className="h-4 w-4 text-white" />
+            </span>
+            <span className="text-xl font-extrabold tracking-tight text-slate-900">
+              Peer
+              <span className="text-brand-gradient">
+                Path
+              </span>
+            </span>
           </Link>
-          <h1>Create Account</h1>
-          <p>Start your learning journey today</p>
-        </div>
 
-        {error && <div className="error-message">{error}</div>}
+          <h1 className="mt-8 text-3xl font-black tracking-tight text-slate-900">Create your account</h1>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600 sm:text-base">
+            Start your AI-guided learning journey in under a minute.
+          </p>
 
-        <form onSubmit={handleSubmit} className="login-form">
-          <div className="form-group">
-            <label htmlFor="name">Full Name</label>
-            <input
-              type="text"
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your full name"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="email">Email</label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="password">Password</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Create a password"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="confirmPassword">Confirm Password</label>
-            <input
-              type="password"
-              id="confirmPassword"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm your password"
-              required
-            />
-          </div>
-
-          <button type="submit" className="login-button" disabled={loading}>
-            {loading ? 'Creating Account...' : 'Create Account'}
-          </button>
-        </form>
-
-        <div className="divider">
-          <span>OR</span>
-        </div>
-
-        <div className="social-login">
-          <GoogleLogin
-            onSuccess={handleGoogleSuccess}
-            onError={handleGoogleError}
-            theme="filled_black"
-            size="large"
-            width="100%"
-            text="signup_with"
-          />
-        </div>
-
-        <p className="signup-link">
-          Already have an account? <Link to="/login">Sign In</Link>
-        </p>
-      </div>
-
-      <div className="login-illustration">
-        <div className="illustration-content">
-          <h2>Join PathSTU Today</h2>
-          <p>Track your progress, earn XP, and build your streak!</p>
-          <div className="stats-preview">
-            <div className="stat-item">
-              <span className="stat-icon">🔥</span>
-              <span className="stat-label">Daily Streaks</span>
+          {error && (
+            <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+              {error}
             </div>
-            <div className="stat-item">
-              <span className="stat-icon">⭐</span>
-              <span className="stat-label">Earn XP</span>
+          )}
+
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <div>
+              <label htmlFor="name" className="mb-1.5 block text-sm font-semibold text-slate-700">
+                Full Name
+              </label>
+              <input
+                id="name"
+                type="text"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Your full name"
+                required
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
-            <div className="stat-item">
-              <span className="stat-icon">📈</span>
-              <span className="stat-label">Track Progress</span>
+
+            <div>
+              <label htmlFor="email" className="mb-1.5 block text-sm font-semibold text-slate-700">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+                required
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
+
+            <div>
+              <label htmlFor="password" className="mb-1.5 block text-sm font-semibold text-slate-700">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="At least 6 characters"
+                  required
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 pr-11 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((value) => !value)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition-colors hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="confirmPassword" className="mb-1.5 block text-sm font-semibold text-slate-700">
+                Confirm Password
+              </label>
+              <input
+                id="confirmPassword"
+                type={showPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                placeholder="Re-enter your password"
+                required
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <p className="mb-2 block text-sm font-semibold text-slate-700">I am signing up as</p>
+              <div className="grid grid-cols-2 gap-2">
+                <label
+                  className={`cursor-pointer rounded-xl border px-3 py-2.5 text-center text-sm font-semibold transition-colors ${
+                    role === 'STUDENT'
+                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                      : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="role"
+                    value="STUDENT"
+                    checked={role === 'STUDENT'}
+                    onChange={(event) => setRole(event.target.value)}
+                    className="sr-only"
+                  />
+                  Student
+                </label>
+                <label
+                  className={`cursor-pointer rounded-xl border px-3 py-2.5 text-center text-sm font-semibold transition-colors ${
+                    role === 'CREATOR'
+                      ? 'border-purple-500 bg-purple-50 text-purple-700'
+                      : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="role"
+                    value="CREATOR"
+                    checked={role === 'CREATOR'}
+                    onChange={(event) => setRole(event.target.value)}
+                    className="sr-only"
+                  />
+                  Creator
+                </label>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-500/30 transition-all hover:-translate-y-0.5 hover:shadow-indigo-500/45 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+            >
+              {loading ? 'Creating account...' : 'Create Account'}
+              {!loading && <ArrowRight className="h-4 w-4" />}
+            </button>
+          </form>
+
+          {googleEnabled && (
+            <>
+              <div className="my-5 flex items-center">
+                <span className="h-px flex-1 bg-slate-200" />
+                <span className="px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">or continue with</span>
+                <span className="h-px flex-1 bg-slate-200" />
+              </div>
+              <div className="flex justify-center">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => setError('Google signup failed. Please try again.')}
+                  theme="outline"
+                  size="large"
+                  text="signup_with"
+                />
+              </div>
+            </>
+          )}
+
+          <p className="mt-6 text-center text-sm text-slate-600">
+            Already have an account?{' '}
+            <Link to="/login" className="font-semibold text-indigo-600 no-underline transition-colors hover:text-indigo-700">
+              Sign in
+            </Link>
+          </p>
+        </div>
+      </section>
+
+      <section className="relative hidden overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 lg:flex lg:items-center lg:justify-center lg:p-12">
+        <div className="pointer-events-none absolute -left-20 -top-20 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 -right-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
+
+        <div className="relative max-w-md text-center text-white">
+          <span className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur">
+            <Sparkles className="h-8 w-8" />
+          </span>
+          <h2 className="mt-7 text-3xl font-black tracking-tight">Join PeerPath AI</h2>
+          <p className="mt-4 text-base leading-relaxed text-white/85">
+            Build exam clarity with adaptive planning, peer-powered resources, and progress systems that keep you moving.
+          </p>
+
+          <div className="mt-8 grid grid-cols-3 gap-3">
+            {[
+              { icon: BookOpen, label: 'Plan Fast' },
+              { icon: TrendingUp, label: 'Grow Daily' },
+              { icon: Users, label: 'Learn Together' },
+            ].map((item) => (
+              <div key={item.label} className="rounded-xl bg-white/15 p-3 backdrop-blur">
+                <item.icon className="mx-auto h-5 w-5" />
+                <p className="mt-1.5 text-xs font-semibold text-white/90">{item.label}</p>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      </section>
     </div>
   )
 }

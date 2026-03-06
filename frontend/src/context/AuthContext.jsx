@@ -15,6 +15,14 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  const persistSession = (nextUser, token) => {
+    if (token) {
+      localStorage.setItem('token', token)
+    }
+    localStorage.setItem('user', JSON.stringify(nextUser))
+    setUser(nextUser)
+  }
+
   useEffect(() => {
     checkAuth()
   }, [])
@@ -35,26 +43,36 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     const response = await authService.login(email, password)
-    localStorage.setItem('token', response.token)
-    localStorage.setItem('user', JSON.stringify(response))
-    setUser(response)
+    persistSession(response, response.token)
     return response
   }
 
-  const register = async (name, email, password) => {
-    const response = await authService.register(name, email, password)
-    localStorage.setItem('token', response.token)
-    localStorage.setItem('user', JSON.stringify(response))
-    setUser(response)
+  const register = async (name, email, password, role) => {
+    const response = await authService.register(name, email, password, role)
+    persistSession(response, response.token)
     return response
   }
 
   const googleLogin = async (credential) => {
     const response = await authService.googleAuth(credential)
-    localStorage.setItem('token', response.token)
-    localStorage.setItem('user', JSON.stringify(response))
-    setUser(response)
+    persistSession(response, response.token)
     return response
+  }
+
+  const updateUserStats = (stats) => {
+    setUser((previousUser) => {
+      if (!previousUser) {
+        return previousUser
+      }
+
+      const nextUser = {
+        ...previousUser,
+        ...stats,
+      }
+
+      localStorage.setItem('user', JSON.stringify(nextUser))
+      return nextUser
+    })
   }
 
   const logout = () => {
@@ -69,6 +87,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     googleLogin,
+    updateUserStats,
     logout,
     isAuthenticated: !!user,
   }

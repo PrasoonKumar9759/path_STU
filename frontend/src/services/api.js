@@ -42,8 +42,8 @@ export const authService = {
     return response.data
   },
 
-  register: async (name, email, password) => {
-    const response = await api.post('/auth/register', { name, email, password })
+  register: async (name, email, password, role) => {
+    const response = await api.post('/auth/register', { name, email, password, role })
     return response.data
   },
 
@@ -54,6 +54,52 @@ export const authService = {
 
   getCurrentUser: async () => {
     const response = await api.get('/auth/me')
+    return response.data
+  },
+}
+
+export const plannerService = {
+  generatePlan: async (subject, topics, targetDate) => {
+    const response = await api.post('/planner/generate', {
+      subject,
+      topics,
+      targetDate,
+    })
+    return response.data
+  },
+
+  getTodayTasks: async () => {
+    const response = await api.get('/planner/tasks/today')
+    return response.data
+  },
+
+  getAllTasks: async () => {
+    const response = await api.get('/planner/tasks')
+    return response.data
+  },
+
+  completeTask: async (taskId) => {
+    const response = await api.post(`/planner/tasks/${taskId}/complete`)
+    return response.data
+  },
+}
+
+export const contentService = {
+  createContent: async (payload) => {
+    const response = await api.post('/content', payload)
+    return response.data
+  },
+
+  browseContent: async (subject, query) => {
+    const params = {}
+    if (subject) params.subject = subject
+    if (query) params.q = query
+    const response = await api.get('/content', { params })
+    return response.data
+  },
+
+  getSubjects: async () => {
+    const response = await api.get('/content/subjects')
     return response.data
   },
 }
