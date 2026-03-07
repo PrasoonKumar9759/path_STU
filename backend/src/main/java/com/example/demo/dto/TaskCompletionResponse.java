@@ -16,4 +16,6 @@ public class TaskCompletionResponse {
     private Integer totalXp;
     private Integer currentStreak;
     private Integer longestStreak;
+    private Integer tokensAwarded;
+    private Integer tokenBalance;
 }

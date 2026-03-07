@@ -12,8 +12,10 @@ import com.example.demo.dto.GoogleAuthRequest;
 import com.example.demo.dto.LoginRequest;
 import com.example.demo.dto.RegisterRequest;
 import com.example.demo.dto.UserDto;
+import com.example.demo.entity.TokenTransaction;
 import com.example.demo.entity.User;
 import com.example.demo.entity.UserRole;
+import com.example.demo.repository.TokenTransactionRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.security.CustomUserDetails;
 import com.example.demo.security.JwtService;
@@ -31,6 +33,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final ObjectMapper objectMapper;
+    private final TokenTransactionRepository tokenTransactionRepository;
 
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -43,9 +46,17 @@ public class AuthService {
                 .password(passwordEncoder.encode(request.getPassword()))
             .role(request.getRole() == null ? UserRole.STUDENT : request.getRole())
                 .provider(User.AuthProvider.LOCAL)
+                .tokenBalance(50)
                 .build();
 
         userRepository.save(user);
+
+        tokenTransactionRepository.save(TokenTransaction.builder()
+                .user(user)
+                .amount(50)
+                .type(TokenTransaction.TransactionType.WELCOME_BONUS)
+                .description("Welcome bonus - 50 free tokens on signup")
+                .build());
 
         CustomUserDetails userDetails = new CustomUserDetails(user);
         String token = jwtService.generateToken(userDetails);
@@ -91,8 +102,18 @@ public class AuthService {
                                 .role(UserRole.STUDENT)
                                 .provider(User.AuthProvider.GOOGLE)
                                 .providerId(googleId)
+                                .tokenBalance(50)
                                 .build();
-                        return userRepository.save(newUser);
+                        User savedUser = userRepository.save(newUser);
+
+                        tokenTransactionRepository.save(TokenTransaction.builder()
+                                .user(savedUser)
+                                .amount(50)
+                                .type(TokenTransaction.TransactionType.WELCOME_BONUS)
+                                .description("Welcome bonus - 50 free tokens on signup")
+                                .build());
+
+                        return savedUser;
                     });
 
             boolean requiresUpdate = false;
@@ -132,6 +153,7 @@ public class AuthService {
                 .totalXp(user.getTotalXp())
                 .currentStreak(user.getCurrentStreak())
                 .longestStreak(user.getLongestStreak())
+                .tokenBalance(user.getTokenBalance())
                 .build();
     }
 
@@ -147,6 +169,7 @@ public class AuthService {
                 .totalXp(user.getTotalXp())
                 .currentStreak(user.getCurrentStreak())
                 .longestStreak(user.getLongestStreak())
+                .tokenBalance(user.getTokenBalance())
                 .build();
     }
 

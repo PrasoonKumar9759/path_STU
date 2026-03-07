@@ -20,4 +20,5 @@ public class UserDto {
     private Integer totalXp;
     private Integer currentStreak;
     private Integer longestStreak;
+    private Integer tokenBalance;
 }

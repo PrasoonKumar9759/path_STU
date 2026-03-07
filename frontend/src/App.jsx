@@ -6,6 +6,8 @@ import Register from './pages/Register'
 import StudentDashboard from './pages/StudentDashboard'
 import CreatorDashboard from './pages/CreatorDashboard'
 import ContentHub from './pages/ContentHub'
+import AiLearningMode from './pages/AiLearningMode'
+import MyLibrary from './pages/MyLibrary'
 import ProtectedRoute from './components/ProtectedRoute'
 
 const RoleDashboardRedirect = () => {
@@ -66,6 +68,22 @@ function App() {
         element={
           <ProtectedRoute>
             <ContentHub />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ai-learning"
+        element={
+          <ProtectedRoute allowedRoles={['STUDENT']}>
+            <AiLearningMode />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/my-library"
+        element={
+          <ProtectedRoute allowedRoles={['STUDENT']}>
+            <MyLibrary />
           </ProtectedRoute>
         }
       />

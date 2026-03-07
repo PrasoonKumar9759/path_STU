@@ -12,3 +12,7 @@ frontend/dist/
 # OS/editor clutter
 .DS_Store
 Thumbs.db
+*.zip
+
+# H2 database files
+backend/data/

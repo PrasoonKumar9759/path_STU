@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
+  AlertTriangle,
   CalendarDays,
   CheckCircle2,
+  Coins,
   Flame,
   ListChecks,
   Loader2,
   LogOut,
   PlusCircle,
+  RefreshCcw,
   Sparkles,
   Star,
   Zap,
@@ -40,6 +43,10 @@ const StudentDashboard = () => {
   const [tasksError, setTasksError] = useState('')
   const [completingTaskId, setCompletingTaskId] = useState(null)
 
+  const [overdueCount, setOverdueCount] = useState(0)
+  const [restructuring, setRestructuring] = useState(false)
+  const [restructureMessage, setRestructureMessage] = useState('')
+
   const pendingTasksCount = useMemo(
     () => todayTasks.filter((task) => !task.completed).length,
     [todayTasks],
@@ -67,12 +74,14 @@ const StudentDashboard = () => {
     setTasksError('')
 
     try {
-      const [todayData, allData] = await Promise.all([
+      const [todayData, allData, overdueData] = await Promise.all([
         plannerService.getTodayTasks(),
         plannerService.getAllTasks(),
+        plannerService.getOverdueCount(),
       ])
       setTodayTasks(todayData)
       setAllTasks(allData)
+      setOverdueCount(overdueData.overdueCount || 0)
     } catch (err) {
       if (err.response?.status === 403) {
         setTasksError('Planner is available only for STUDENT accounts.')
@@ -125,6 +134,20 @@ const StudentDashboard = () => {
     }
   }
 
+  const handleRestructure = async () => {
+    setRestructuring(true)
+    setRestructureMessage('')
+    try {
+      const data = await plannerService.restructurePlan()
+      setRestructureMessage(data.message || 'Plan restructured successfully.')
+      await loadTasks()
+    } catch (err) {
+      setRestructureMessage(err.response?.data?.message || 'Failed to restructure plan.')
+    } finally {
+      setRestructuring(false)
+    }
+  }
+
   const handleCompleteTask = async (taskId) => {
     setCompletingTaskId(taskId)
     setTasksError('')
@@ -160,6 +183,7 @@ const StudentDashboard = () => {
         totalXp: response.totalXp,
         currentStreak: response.currentStreak,
         longestStreak: response.longestStreak,
+        tokenBalance: response.tokenBalance,
       })
     } catch (err) {
       setTasksError(err.response?.data?.message || 'Could not complete task.')
@@ -186,6 +210,18 @@ const StudentDashboard = () => {
             >
               Content Hub
             </Link>
+            <Link
+              to="/ai-learning"
+              className="rounded-lg px-3 py-2 text-sm font-semibold text-indigo-600 transition-colors hover:bg-indigo-50 no-underline"
+            >
+              AI Learning
+            </Link>
+            <Link
+              to="/my-library"
+              className="rounded-lg px-3 py-2 text-sm font-semibold text-emerald-600 transition-colors hover:bg-emerald-50 no-underline"
+            >
+              My Library
+            </Link>
             <button
               type="button"
               onClick={handleLogout}
@@ -206,7 +242,7 @@ const StudentDashboard = () => {
             Build a deterministic study plan and complete today&apos;s checklist to earn XP.
           </p>
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+          <div className="mt-6 grid gap-4 sm:grid-cols-4">
             <div className="rounded-xl border border-amber-200/70 bg-amber-50 p-4">
               <p className="text-xs font-bold uppercase tracking-wide text-amber-700">Total XP</p>
               <p className="mt-1 text-2xl font-black text-amber-700">{user?.totalXp || 0}</p>
@@ -222,7 +258,40 @@ const StudentDashboard = () => {
               <p className="text-xs font-bold uppercase tracking-wide text-purple-700">Best Streak</p>
               <p className="mt-1 text-2xl font-black text-purple-700">{user?.longestStreak || 0}</p>
             </div>
+            <div className="rounded-xl border border-yellow-200/70 bg-yellow-50 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-yellow-700">Tokens</p>
+              <p className="mt-1 inline-flex items-center gap-1 text-2xl font-black text-yellow-700">
+                <Coins className="h-6 w-6" />
+                {user?.tokenBalance || 0}
+              </p>
+            </div>
           </div>
+
+          {overdueCount > 0 && (
+            <div className="mt-4 flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-rose-600" />
+                <span className="text-sm font-semibold text-rose-700">
+                  You have {overdueCount} overdue task{overdueCount > 1 ? 's' : ''}. Restructure your plan to redistribute the workload.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleRestructure}
+                disabled={restructuring}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-rose-700 disabled:opacity-60"
+              >
+                {restructuring ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCcw className="h-3.5 w-3.5" />}
+                Restructure
+              </button>
+            </div>
+          )}
+
+          {restructureMessage && (
+            <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+              {restructureMessage}
+            </div>
+          )}
         </section>
 
         <aside className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-4">
@@ -415,7 +484,7 @@ const StudentDashboard = () => {
 
           <div className="mt-5 inline-flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">
             <Star className="h-4 w-4" />
-            +50 XP is awarded for every completed daily task.
+            +50 XP &amp; +10 Tokens per completed task. Streak bonuses for consistent study!
           </div>
         </section>
       </main>

@@ -68,6 +68,16 @@ export const plannerService = {
     return response.data
   },
 
+  restructurePlan: async () => {
+    const response = await api.post('/planner/restructure')
+    return response.data
+  },
+
+  getOverdueCount: async () => {
+    const response = await api.get('/planner/overdue-count')
+    return response.data
+  },
+
   getTodayTasks: async () => {
     const response = await api.get('/planner/tasks/today')
     return response.data
@@ -79,7 +89,12 @@ export const plannerService = {
   },
 
   completeTask: async (taskId) => {
-    const response = await api.post(`/planner/tasks/${taskId}/complete`)
+    const response = await api.post(`/planner/tasks/${encodeURIComponent(taskId)}/complete`)
+    return response.data
+  },
+
+  getCompletedTasks: async () => {
+    const response = await api.get('/planner/tasks/completed')
     return response.data
   },
 }
@@ -90,16 +105,62 @@ export const contentService = {
     return response.data
   },
 
-  browseContent: async (subject, query) => {
-    const params = {}
+  browseContent: async (subject, query, page = 0, size = 12) => {
+    const params = { page, size }
     if (subject) params.subject = subject
     if (query) params.q = query
     const response = await api.get('/content', { params })
     return response.data
   },
 
+  getMyContent: async () => {
+    const response = await api.get('/content/my')
+    return response.data
+  },
+
   getSubjects: async () => {
     const response = await api.get('/content/subjects')
+    return response.data
+  },
+
+  generateAiDescription: async (title, subject, topic) => {
+    const params = { title, subject, topic }
+    const response = await api.post('/content/ai-description', null, { params })
+    return response.data
+  },
+}
+
+export const tokenService = {
+  getBalance: async () => {
+    const response = await api.get('/tokens/balance')
+    return response.data
+  },
+
+  unlockContent: async (contentId) => {
+    const response = await api.post('/tokens/unlock', { contentId })
+    return response.data
+  },
+
+  getUnlockedContent: async () => {
+    const response = await api.get('/tokens/unlocked')
+    return response.data
+  },
+}
+
+export const aiLearningService = {
+  generatePath: async (syllabusText, pdfFile, examDate) => {
+    const formData = new FormData()
+    if (syllabusText) formData.append('syllabusText', syllabusText)
+    if (pdfFile) formData.append('pdfFile', pdfFile)
+    if (examDate) formData.append('examDate', examDate)
+    const response = await api.post('/ai-learning/generate', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data
+  },
+
+  getHistory: async () => {
+    const response = await api.get('/ai-learning/history')
     return response.data
   },
 }

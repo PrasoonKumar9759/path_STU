@@ -54,6 +54,10 @@ public class User {
     @Column(nullable = false)
     @Builder.Default
     private Integer longestStreak = 0;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer tokenBalance = 0;
     
     private LocalDateTime lastActivityDate;
     

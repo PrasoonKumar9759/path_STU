@@ -31,4 +31,11 @@ public class ContentCreateRequest {
 
     @Size(max = 1200, message = "Description must be at most 1200 characters")
     private String description;
+
+    private Boolean premium;
+
+    private Integer tokenCost;
+
+    @Size(max = 120, message = "Campus must be at most 120 characters")
+    private String campus;
 }

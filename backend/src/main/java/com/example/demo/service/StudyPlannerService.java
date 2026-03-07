@@ -1,32 +1,40 @@
 package com.example.demo.service;
 
-import com.example.demo.dto.StudyPlanRequest;
-import com.example.demo.dto.StudyPlanResponse;
-import com.example.demo.dto.StudyTaskResponse;
-import com.example.demo.dto.TaskCompletionResponse;
-import com.example.demo.entity.StudyTask;
-import com.example.demo.entity.User;
-import com.example.demo.entity.UserRole;
-import com.example.demo.repository.StudyTaskRepository;
-import com.example.demo.repository.UserRepository;
-import com.example.demo.security.CustomUserDetails;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.example.demo.dto.RestructureResponse;
+import com.example.demo.dto.StudyPlanRequest;
+import com.example.demo.dto.StudyPlanResponse;
+import com.example.demo.dto.StudyTaskResponse;
+import com.example.demo.dto.TaskCompletionResponse;
+import com.example.demo.entity.StudyTask;
+import com.example.demo.entity.TokenTransaction;
+import com.example.demo.entity.User;
+import com.example.demo.entity.UserRole;
+import com.example.demo.repository.StudyTaskRepository;
+import com.example.demo.repository.TokenTransactionRepository;
+import com.example.demo.repository.UserRepository;
+import com.example.demo.security.CustomUserDetails;
+
+import lombok.RequiredArgsConstructor;
+
 @Service
 @RequiredArgsConstructor
 public class StudyPlannerService {
 
     private static final int XP_PER_TASK = 50;
+    private static final int TOKENS_PER_TASK = 10;
 
     private final StudyTaskRepository studyTaskRepository;
     private final UserRepository userRepository;
+    private final TokenTransactionRepository tokenTransactionRepository;
 
     public StudyPlanResponse generatePlan(CustomUserDetails userDetails, StudyPlanRequest request) {
         User student = getStudentUser(userDetails.getId());
@@ -85,6 +93,82 @@ public class StudyPlannerService {
                 .build();
     }
 
+    @Transactional
+    public RestructureResponse restructurePlan(CustomUserDetails userDetails) {
+        User student = getStudentUser(userDetails.getId());
+        LocalDate today = LocalDate.now();
+
+        // Find overdue incomplete tasks (assigned before today, not completed)
+        List<StudyTask> overdueTasks = studyTaskRepository
+                .findByStudentIdAndCompletedFalseAndAssignedDateBeforeOrderByAssignedDateAsc(
+                        student.getId(), today);
+
+        if (overdueTasks.isEmpty()) {
+            return RestructureResponse.builder()
+                    .overdueTasks(0)
+                    .redistributedTasks(0)
+                    .remainingDays(0)
+                    .message("No overdue tasks found. Your plan is on track!")
+                    .updatedTasks(List.of())
+                    .build();
+        }
+
+        // Find future incomplete tasks (today or later, not completed)
+        List<StudyTask> futureTasks = studyTaskRepository
+                .findByStudentIdAndCompletedFalseAndAssignedDateGreaterThanEqualOrderByAssignedDateAsc(
+                        student.getId(), today);
+
+        // Combine all incomplete tasks to redistribute
+        List<StudyTask> allIncompleteTasks = new ArrayList<>();
+        allIncompleteTasks.addAll(overdueTasks);
+        allIncompleteTasks.addAll(futureTasks);
+
+        // Find the latest assigned date to determine target
+        LocalDate targetDate = allIncompleteTasks.stream()
+                .map(StudyTask::getAssignedDate)
+                .max(LocalDate::compareTo)
+                .orElse(today);
+
+        // If target is in the past, extend to give at least a few days buffer
+        if (!targetDate.isAfter(today)) {
+            targetDate = today.plusDays(Math.max(3, allIncompleteTasks.size()));
+        }
+
+        // Add buffer days proportional to overdue count to keep plan realistic
+        long extraDays = Math.min(overdueTasks.size(), 7);
+        targetDate = targetDate.plusDays(extraDays);
+
+        long remainingDays = ChronoUnit.DAYS.between(today, targetDate) + 1;
+        int totalTasks = allIncompleteTasks.size();
+        int totalDays = (int) remainingDays;
+        int basePerDay = totalTasks / totalDays;
+        int extraTaskDays = totalTasks % totalDays;
+
+        // Redistribute tasks evenly across remaining days
+        int taskIndex = 0;
+        for (int dayIndex = 0; dayIndex < totalDays && taskIndex < totalTasks; dayIndex++) {
+            int tasksForDay = basePerDay + (dayIndex < extraTaskDays ? 1 : 0);
+            LocalDate assignedDate = today.plusDays(dayIndex);
+
+            for (int i = 0; i < tasksForDay && taskIndex < totalTasks; i++) {
+                allIncompleteTasks.get(taskIndex).setAssignedDate(assignedDate);
+                taskIndex++;
+            }
+        }
+
+        List<StudyTask> savedTasks = studyTaskRepository.saveAll(allIncompleteTasks);
+
+        return RestructureResponse.builder()
+                .overdueTasks(overdueTasks.size())
+                .redistributedTasks(totalTasks)
+                .remainingDays(totalDays)
+                .message(String.format(
+                        "Restructured %d overdue tasks. %d total tasks spread across %d days. You've got this!",
+                        overdueTasks.size(), totalTasks, totalDays))
+                .updatedTasks(savedTasks.stream().map(this::toTaskResponse).toList())
+                .build();
+    }
+
     public List<StudyTaskResponse> getTodayTasks(CustomUserDetails userDetails) {
         Long studentId = userDetails.getId();
         LocalDate today = LocalDate.now();
@@ -104,6 +188,21 @@ public class StudyPlannerService {
                 .toList();
     }
 
+    public int getOverdueCount(Long studentId) {
+        return studyTaskRepository
+                .findByStudentIdAndCompletedFalseAndAssignedDateBeforeOrderByAssignedDateAsc(
+                        studentId, LocalDate.now())
+                .size();
+    }
+
+    public List<StudyTaskResponse> getCompletedTasks(CustomUserDetails userDetails) {
+        return studyTaskRepository.findByStudentIdAndCompletedTrueOrderByCompletedAtDesc(userDetails.getId())
+                .stream()
+                .map(this::toTaskResponse)
+                .toList();
+    }
+
+    @Transactional
     public TaskCompletionResponse completeTask(CustomUserDetails userDetails, Long taskId) {
         Long studentId = userDetails.getId();
 
@@ -119,6 +218,8 @@ public class StudyPlannerService {
                     .totalXp(safeInt(student.getTotalXp()))
                     .currentStreak(safeInt(student.getCurrentStreak()))
                     .longestStreak(safeInt(student.getLongestStreak()))
+                    .tokensAwarded(0)
+                    .tokenBalance(safeInt(student.getTokenBalance()))
                     .build();
         }
 
@@ -126,9 +227,24 @@ public class StudyPlannerService {
         task.setCompletedAt(LocalDateTime.now());
         StudyTask savedTask = studyTaskRepository.save(task);
 
+        // Award XP
         int totalXp = safeInt(student.getTotalXp()) + XP_PER_TASK;
         student.setTotalXp(totalXp);
 
+        // Award tokens for task completion
+        int tokensAwarded = TOKENS_PER_TASK;
+        int tokenBalance = safeInt(student.getTokenBalance()) + tokensAwarded;
+        student.setTokenBalance(tokenBalance);
+
+        // Record token transaction
+        tokenTransactionRepository.save(TokenTransaction.builder()
+                .user(student)
+                .amount(tokensAwarded)
+                .type(TokenTransaction.TransactionType.TASK_COMPLETION)
+                .description("Completed: " + task.getTopic())
+                .build());
+
+        // Update streak
         LocalDate today = LocalDate.now();
         LocalDate lastActivityDate = student.getLastActivityDate() == null
                 ? null
@@ -147,6 +263,20 @@ public class StudyPlannerService {
         student.setLongestStreak(Math.max(safeInt(student.getLongestStreak()), currentStreak));
         student.setLastActivityDate(LocalDateTime.now());
 
+        // Check for streak bonuses
+        int streakBonus = calculateStreakBonus(currentStreak);
+        if (streakBonus > 0 && (lastActivityDate == null || !lastActivityDate.isEqual(today))) {
+            tokensAwarded += streakBonus;
+            student.setTokenBalance(safeInt(student.getTokenBalance()) + streakBonus);
+
+            tokenTransactionRepository.save(TokenTransaction.builder()
+                    .user(student)
+                    .amount(streakBonus)
+                    .type(TokenTransaction.TransactionType.STREAK_BONUS)
+                    .description(currentStreak + "-day streak bonus!")
+                    .build());
+        }
+
         userRepository.save(student);
 
         return TaskCompletionResponse.builder()
@@ -155,7 +285,17 @@ public class StudyPlannerService {
                 .totalXp(student.getTotalXp())
                 .currentStreak(student.getCurrentStreak())
                 .longestStreak(student.getLongestStreak())
+                .tokensAwarded(tokensAwarded)
+                .tokenBalance(student.getTokenBalance())
                 .build();
+    }
+
+    private int calculateStreakBonus(int currentStreak) {
+        if (currentStreak >= 30) return 200;
+        if (currentStreak >= 14) return 100;
+        if (currentStreak >= 7) return 50;
+        if (currentStreak >= 3) return 20;
+        return 0;
     }
 
     private User getStudentUser(Long userId) {

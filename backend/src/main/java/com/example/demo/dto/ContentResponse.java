@@ -21,5 +21,9 @@ public class ContentResponse {
     private String description;
     private Long creatorId;
     private String creatorName;
+    private Boolean premium;
+    private Integer tokenCost;
+    private String campus;
+    private Boolean unlocked;
     private LocalDateTime createdAt;
 }

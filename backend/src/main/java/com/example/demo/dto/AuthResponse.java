@@ -23,4 +23,5 @@ public class AuthResponse {
     private Integer totalXp;
     private Integer currentStreak;
     private Integer longestStreak;
+    private Integer tokenBalance;
 }

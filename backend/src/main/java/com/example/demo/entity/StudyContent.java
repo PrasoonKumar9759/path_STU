@@ -47,6 +47,16 @@ public class StudyContent {
     @Column(length = 1200)
     private String description;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean premium = false;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer tokenCost = 0;
+
+    private String campus;
+
     @Column(nullable = false, updatable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
